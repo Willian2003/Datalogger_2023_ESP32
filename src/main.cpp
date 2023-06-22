@@ -32,13 +32,28 @@ const char *host = "esp32";                   // Here's your "host device name"
 const char *ESP_ssid = "Mangue_Baja_DEV";     // Here's your ESP32 WIFI ssid
 const char *ESP_password = "aratucampeaodev"; // Here's your ESP32 WIFI pass
 
+/*Arduino Tools*/
+Ticker sdTicker;
+
 /*Global variables*/
+bool mounted=false;
+bool saveFlag=false;
+bool savingBlink = false;
 bool c=false;
 
+/*Interrupt routine*/
+void toggle_logging();
 /*General Functions*/
 void pinConfig();
 void setupVolatilePacket();
 void taskSetup();
+/*SD functions*/
+void sdConfig();
+int countFiles(File dir);
+void sdSave();
+String packetToString();
+void sdCallback();
+/*GPRS functions*/
 void gsmCallback(char *topic, byte *payload, unsigned int length);
 void gsmReconnect();
 void publishPacket();
@@ -65,8 +80,15 @@ void pinConfig()
 {
     /*Pins*/
     pinMode(EMBEDDED_LED,OUTPUT);
+    attachInterrupt(digitalPinToInterrupt(Button),toggle_logging,CHANGE);
+    sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback); //Start data acquisition
 
     return;
+}
+
+void toggle_logging() 
+{
+    running = !running;
 }
 
 void setupVolatilePacket()
@@ -87,9 +109,99 @@ void taskSetup()
 
 void SDstateMachine(void *pvParameters)
 {
-    if (c) {
-        
+    while (true)
+    {
+        while (!running)
+        {
+            pinMode(EMBEDDED_LED,HIGH);
+            mounted=false;
+        }
+         
+        while (running) 
+        {
+            if(saveFlag)
+            {
+                sdConfig();
+                saveFlag = false;
+            }
+        }
     }
+}
+
+/*SD functions*/
+
+void sdConfig()
+{
+    if (!mounted)
+    {
+        if (!SD.begin(SD_CS))
+        {
+            return;
+        }
+
+        root = SD.open("/");
+        int num_files = countFiles(root);
+        sprintf(file_name, "/%s%d.csv", "data", num_files + 1);
+        mounted = true;   
+    }
+    sdSave();
+}
+
+int countFiles(File dir)
+{
+    int fileCountOnSD = 0; // for counting files
+
+    while (true)
+    {
+        File entry = dir.openNextFile();
+    
+        if (!entry)
+        {
+        // no more files
+        break;
+        }
+        // for each file count it
+        fileCountOnSD++;
+        entry.close();
+    }
+
+    return fileCountOnSD - 1;
+}
+
+void sdSave()
+{
+    dataFile = SD.open(file_name, FILE_APPEND);
+
+    if (dataFile)
+    {
+        dataFile.println(packetToString());
+        dataFile.close();
+    
+        digitalWrite(EMBEDDED_LED, LOW);
+    }
+
+    else
+    {
+        savingBlink = !savingBlink;
+        digitalWrite(EMBEDDED_LED, savingBlink);
+        Serial.println("falha no save");
+    }
+}
+
+String packetToString()
+{
+    //aqui vai guardar os valores dos sensores
+    
+    String dataString = "";
+     dataString += String(volatile_packet.rpm=0);
+     dataString += String(volatile_packet.speed=0);
+
+    return dataString;
+}
+
+void sdCallback()
+{
+    saveFlag=true;
 }
 
 /*Conectivity State Machine*/
