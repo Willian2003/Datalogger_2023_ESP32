@@ -39,20 +39,25 @@ Ticker sdTicker;
 bool mounted=false;
 bool saveFlag=false;
 bool savingBlink = false;
-bool c=false;
+bool aberto=false;
+uint16_t freq_pulse_counter=0;
+uint16_t speed_pulse_counter=0;
 
 /*Interrupt routine*/
 void toggle_logging();
+void sdCallback();
+void freq_sensor();
+void speed_sensor();
 /*General Functions*/
 void pinConfig();
 void setupVolatilePacket();
 void taskSetup();
+void data_acquisition();
 /*SD functions*/
 void sdConfig();
 int countFiles(File dir);
 void sdSave();
 String packetToString();
-void sdCallback();
 /*GPRS functions*/
 void gsmCallback(char *topic, byte *payload, unsigned int length);
 void gsmReconnect();
@@ -66,43 +71,46 @@ void setup()
     Serial.begin(115200);
     SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
-    pinConfig(); // Hardware and Interrupt Config
-
-    setupVolatilePacket(); // volatile packet default values
-    taskSetup();           // Tasks
+    setupVolatilePacket();  // volatile packet default values
+    pinConfig();            // Hardware and Interrupt Config
+    taskSetup();            // Tasks
 }
 
 void loop() {}
 
 /* Setup Descriptions */
 
+void setupVolatilePacket()
+{
+    volatile_packet.rpm=0;
+    volatile_packet.speed=0;
+    volatile_packet.timestamp=0;
+}
+
 void pinConfig()
 {
     /*Pins*/
     pinMode(EMBEDDED_LED,OUTPUT);
     attachInterrupt(digitalPinToInterrupt(Button),toggle_logging,CHANGE);
+    attachInterrupt(digitalPinToInterrupt(freq_pin),freq_sensor,FALLING);
+    attachInterrupt(digitalPinToInterrupt(speed_pin),speed_sensor,FALLING);
     sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback); //Start data acquisition
 
     return;
 }
 
-void toggle_logging() 
-{
-    running = !running;
-}
-
-void setupVolatilePacket()
-{
-    volatile_packet.rpm=0;
-    volatile_packet.speed=0;
-}
-
 void taskSetup()
 {
   xTaskCreatePinnedToCore(SDstateMachine, "SDStateMachine", 10000, NULL, 5, NULL, 0);
-  // This state machine is responsible for the Basic CAN logging
+  // This state machine is responsible for the Basic data acquisition and storage
   xTaskCreatePinnedToCore(ConnStateMachine, "ConnectivityStateMachine", 10000, NULL, 5, NULL, 1);
-  // This state machine is responsible for the GPRS, GPS and possible bluetooth connection
+  // This state machine is responsible for the GPRS and possible bluetooth connection
+}
+
+/*Interrupt of setup*/
+void toggle_logging() 
+{
+    running = !running;
 }
 
 /*SD State Machine*/
@@ -116,12 +124,15 @@ void SDstateMachine(void *pvParameters)
             pinMode(EMBEDDED_LED,HIGH);
             mounted=false;
         }
+
+        sdConfig();
          
         while (running) 
         {
             if(saveFlag)
             {
-                sdConfig();
+                data_acquisition();
+                sdSave();   
                 saveFlag = false;
             }
         }
@@ -144,7 +155,6 @@ void sdConfig()
         sprintf(file_name, "/%s%d.csv", "data", num_files + 1);
         mounted = true;   
     }
-    sdSave();
 }
 
 int countFiles(File dir)
@@ -166,6 +176,16 @@ int countFiles(File dir)
     }
 
     return fileCountOnSD - 1;
+}
+
+void data_acquisition()
+{
+    volatile_packet.rpm = freq_pulse_counter;
+    volatile_packet.speed = speed_pulse_counter;
+    volatile_packet.timestamp = millis();
+
+    freq_pulse_counter=0;
+    speed_pulse_counter=0;
 }
 
 void sdSave()
@@ -193,8 +213,10 @@ String packetToString()
     //aqui vai guardar os valores dos sensores
     
     String dataString = "";
-     dataString += String(volatile_packet.rpm=0);
-     dataString += String(volatile_packet.speed=0);
+     dataString += String(volatile_packet.rpm);
+     dataString += ",";
+     dataString += String(volatile_packet.speed);
+     dataString += ",";
 
     return dataString;
 }
@@ -204,11 +226,22 @@ void sdCallback()
     saveFlag=true;
 }
 
+/*Interrupts of SD Thread*/
+void freq_sensor()
+{
+    freq_pulse_counter++;
+}
+
+void speed_sensor()
+{
+    speed_pulse_counter++;
+}
+
 /*Conectivity State Machine*/
 
 void ConnStateMachine(void *pvParameters)
 {
-    if (c) {
+    if (aberto) {
         // To skip it, call init() instead of restart()
         Serial.println("Initializing modem...");
         modem.restart();
