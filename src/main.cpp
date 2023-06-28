@@ -93,7 +93,7 @@ void pinConfig()
 {
     /*Pins*/
     pinMode(EMBEDDED_LED, OUTPUT);
-    attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, RISING);
 
     return;
 }
@@ -330,7 +330,7 @@ void ConnStateMachine(void *pvParameters)
         {
             if (!mqttClient.connected())
             {
-            gsmReconnect();
+                gsmReconnect();
             }
 
             publishPacket();
