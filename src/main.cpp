@@ -2,6 +2,7 @@
 #include <FS.h>
 #include <Wire.h>
 #include <SPI.h>
+#include <I2S.h>
 #include <SD.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
@@ -10,6 +11,9 @@
 #include "gprs_defs.h"
 #include "software_definitions.h"
 #include "saving.h"
+
+//#define DINAMICO
+//#define PACOTE
 
 // GPRS credentials
 const char apn[] = "timbrasil.br";    // Your APN
@@ -27,7 +31,7 @@ const char *server = "64.227.19.172";
 char msg[MSG_BUFFER_SIZE];
 char payload_char[MSG_BUFFER_SIZE];
 
-// ESP hotspot defini  tions
+// ESP hotspot definitions
 const char *host = "esp32";                   // Here's your "host device name"
 const char *ESP_ssid = "Mangue_Baja_DEV";     // Here's your ESP32 WIFI ssid
 const char *ESP_password = "aratucampeaodev"; // Here's your ESP32 WIFI pass
@@ -127,12 +131,14 @@ void SDstateMachine(void *pvParameters)
             pinMode(LOG_LED, logging);
             Serial.printf("\r\nrunning=%d\r\n", running);
 
+            l_state = WAITING;
+            c_state = MQTT_CONNECT;
             mounted=false;
 
             detachInterrupt(digitalPinToInterrupt(freq_pin));
             detachInterrupt(digitalPinToInterrupt(speed_pin));
             sdTicker.detach();
-        }
+        }   
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
         attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
@@ -147,6 +153,9 @@ void SDstateMachine(void *pvParameters)
 
             pinMode(WAIT_LED, waiting);
             pinMode(LOG_LED, logging);
+
+            l_state = LOGGING;
+            c_state = IDLE_ST;
 
             if(saveFlag)
             {
@@ -334,6 +343,32 @@ void ConnStateMachine(void *pvParameters)
             }
 
             publishPacket();
+
+            #ifdef DINAMICO
+                switch (l_state)
+                {
+                case IDLE:
+                    /* code */
+                    break;
+                
+                case WAITING:
+                    break;
+                
+                case LOGGING:
+                    publishPacket();
+                    break;
+                }
+            #endif
+
+            #ifdef PACOTE
+                if (c_state==MQTT_CONNECT)
+                {
+                    if (l_state==WAITING)
+                    {
+                        publishPacket();
+                    }
+                }
+            #endif
 
             mqttClient.loop();
             vTaskDelay(1);

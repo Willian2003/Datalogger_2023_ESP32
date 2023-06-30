@@ -8,15 +8,19 @@
 
 /* State Machines */
 //Ocorrerá mudanças no enum
-typedef enum{
+typedef enum {
     IDLE,
-    SAVE,
-    CAN_STATE,
+    WAITING,
+    LOGGING
 } logging_states;
 
-typedef enum{} connectivity_states;
+typedef enum {
+    IDLE_ST,
+    MQTT_CONNECT
+} connectivity_states;
 
 logging_states l_state; // datalogger state
+connectivity_states c_state; // Enable the mqtt publish
 
 unsigned long timer;
 
