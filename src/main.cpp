@@ -12,9 +12,6 @@
 #include "software_definitions.h"
 #include "saving.h"
 
-//#define DINAMICO
-//#define PACOTE
-
 // GPRS credentials
 const char apn[] = "timbrasil.br";    // Your APN
 const char gprsUser[] = "tim";         // User
@@ -132,7 +129,6 @@ void SDstateMachine(void *pvParameters)
             Serial.printf("\r\nrunning=%d\r\n", running);
 
             l_state = WAITING;
-            c_state = MQTT_CONNECT;
             mounted=false;
 
             detachInterrupt(digitalPinToInterrupt(freq_pin));
@@ -155,7 +151,6 @@ void SDstateMachine(void *pvParameters)
             pinMode(LOG_LED, logging);
 
             l_state = LOGGING;
-            c_state = IDLE_ST;
 
             if(saveFlag)
             {
@@ -343,32 +338,6 @@ void ConnStateMachine(void *pvParameters)
             }
 
             publishPacket();
-
-            #ifdef DINAMICO
-                switch (l_state)
-                {
-                case IDLE:
-                    /* code */
-                    break;
-                
-                case WAITING:
-                    break;
-                
-                case LOGGING:
-                    publishPacket();
-                    break;
-                }
-            #endif
-
-            #ifdef PACOTE
-                if (c_state==MQTT_CONNECT)
-                {
-                    if (l_state==WAITING)
-                    {
-                        publishPacket();
-                    }
-                }
-            #endif
 
             mqttClient.loop();
             vTaskDelay(1);

@@ -14,13 +14,9 @@ typedef enum {
     LOGGING
 } logging_states;
 
-typedef enum {
-    IDLE_ST,
-    MQTT_CONNECT
-} connectivity_states;
+typedef enum {} connectivity_states;
 
 logging_states l_state; // datalogger state
-connectivity_states c_state; // Enable the mqtt publish
 
 unsigned long timer;
 
