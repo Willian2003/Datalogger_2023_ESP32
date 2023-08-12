@@ -75,7 +75,6 @@ void setup()
     Serial.begin(115200);
     SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
-    digitalWrite (WAIT_LED, HIGH);
     setupVolatilePacket();  // volatile packet default values
     pinConfig();            // Hardware and Interrupt Config
     taskSetup();            // Tasks
@@ -87,9 +86,9 @@ void loop() {}
 
 void setupVolatilePacket()
 {
-    volatile_packet.rpm = 0;
-    volatile_packet.speed = 0;
-    volatile_packet.timestamp = 0;
+    volatile_packet.rpm=0;
+    volatile_packet.speed=0;
+    volatile_packet.timestamp=0;
 }
 
 void pinConfig()
@@ -101,13 +100,15 @@ void pinConfig()
     pinMode(LOG_LED, OUTPUT);
     
     attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, CHANGE);
+  
+  return;
 }
 
 void taskSetup()
 {
   xTaskCreatePinnedToCore(SDstateMachine, "SDStateMachine", 10000, NULL, 5, NULL, 0);
   // This state machine is responsible for the Basic data acquisition and storage
-  //xTaskCreatePinnedToCore(ConnStateMachine, "ConnectivityStateMachine", 10000, NULL, 5, NULL, 1);
+  xTaskCreatePinnedToCore(ConnStateMachine, "ConnectivityStateMachine", 10000, NULL, 5, NULL, 1);
   // This state machine is responsible for the GPRS and possible bluetooth connection
 }
 
@@ -191,7 +192,7 @@ void SDstateMachine(void *pvParameters)
 
             l_state = LOGGING;
 
-            if (saveFlag)
+            if(saveFlag)
             {
                 data_acquisition();
                 sdSave();   
