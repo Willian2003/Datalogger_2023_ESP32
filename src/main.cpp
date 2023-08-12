@@ -141,7 +141,7 @@ void SDstateMachine(void *pvParameters)
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
         attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach(1.0 / SAMPLE_FREQ, sdCallback);
+        sdTicker.attach((float)(1.0/SAMPLE_FREQ), sdCallback);
         sdConfig();
 
         while(save) 
@@ -226,7 +226,7 @@ int countFiles(File dir)
 {
     int fileCountOnSD = 0; // for counting files
 
-    while(true)
+    while (true)
     {
         File entry = dir.openNextFile();
     
@@ -240,7 +240,7 @@ int countFiles(File dir)
         entry.close();
     }
 
-    return fileCountOnSD - 1;
+    return fileCountOnSD-1;
 }
 
 void data_acquisition()
@@ -257,16 +257,14 @@ void sdSave()
 {
     dataFile = SD.open(file_name, FILE_APPEND);
 
-    if(dataFile)
+    if (dataFile)
     {
         dataFile.println(packetToString());
         dataFile.close();
     
         savingBlink = !savingBlink;
         digitalWrite(EMBEDDED_LED, savingBlink);
-    }
-    else
-    {
+    } else {
         digitalWrite(EMBEDDED_LED, HIGH);
         Serial.println("falha no save");
     }
@@ -275,7 +273,6 @@ void sdSave()
 String packetToString()
 {
     //aqui vai guardar os valores dos sensores
-    
     String dataString = "";
      dataString += String(volatile_packet.rpm);
      dataString += ",";
