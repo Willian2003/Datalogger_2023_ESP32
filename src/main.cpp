@@ -141,7 +141,7 @@ void SDstateMachine(void *pvParameters)
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
         attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach((float)(1.0/SAMPLE_FREQ), sdCallback);
+        sdTicker.attach((1.0/SAMPLE_FREQ), sdCallback);
         sdConfig();
 
         while(save) 
