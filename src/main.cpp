@@ -44,6 +44,9 @@ bool aberto = true;
 int waiting = 0;
 int logging = 0;
 bool currentState;
+uint16_t freq_pulse_counter = 0;
+uint16_t speed_pulse_counter =  0;
+
 /*Interrupt routine*/
 void toggle_logging();
 void sdCallback();
