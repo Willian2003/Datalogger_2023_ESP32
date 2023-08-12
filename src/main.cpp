@@ -11,7 +11,7 @@
 #include "gprs_defs.h"
 #include "software_definitions.h"
 #include "saving.h"
-
+                                                                            
 // GPRS credentials
 const char apn[] = "timbrasil.br";    // Your APN
 const char gprsUser[] = "tim";         // User
@@ -40,11 +40,12 @@ Ticker sdTicker;
 bool mounted = false;
 bool saveFlag = false;
 bool savingBlink = false;
-bool aberto=false;
-int waiting=0;
-int logging=0;
-uint16_t freq_pulse_counter=0;
-uint16_t speed_pulse_counter=0;
+bool aberto = true;
+int waiting = 0;
+int logging = 0;
+bool currentState;
+uint16_t freq_pulse_counter = 0;
+uint16_t speed_pulse_counter =  0;
 
 /*Interrupt routine*/
 void toggle_logging();
@@ -93,10 +94,14 @@ void setupVolatilePacket()
 void pinConfig()
 {
     /*Pins*/
+    pinMode(Button, INPUT_PULLUP);
     pinMode(EMBEDDED_LED, OUTPUT);
-    attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, RISING);
-
-    return;
+    pinMode(WAIT_LED, OUTPUT);
+    pinMode(LOG_LED, OUTPUT);
+    
+    attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, CHANGE);
+  
+  return;
 }
 
 void taskSetup()
@@ -110,15 +115,50 @@ void taskSetup()
 /*Interrupt of setup*/
 void toggle_logging() 
 {
-    running = !running;
+    saveDebounceTimeout = millis();
+    save = digitalRead(Button); 
 }
 
 /*SD State Machine*/
 
 void SDstateMachine(void *pvParameters)
 {
-    while (true)
+    while(1)
     {
+        //while ((millis() - saveDebounceTimeout) > DEBOUNCETIME) {
+        while(!save) 
+        {
+            Serial.println("não");
+            digitalWrite (WAIT_LED, HIGH);
+            digitalWrite (LOG_LED, LOW);
+            digitalWrite (EMBEDDED_LED, LOW); 
+
+            mounted = false;
+            detachInterrupt(digitalPinToInterrupt(freq_pin));
+            detachInterrupt(digitalPinToInterrupt(speed_pin));
+            sdTicker.detach();
+        }
+
+        attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
+        attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
+        sdTicker.attach(1.0 / SAMPLE_FREQ, sdCallback);
+        sdConfig();
+
+        while(save) 
+        {
+            Serial.println("ok");
+            digitalWrite (EMBEDDED_LED, HIGH);
+            digitalWrite (WAIT_LED, LOW);
+            digitalWrite (LOG_LED, HIGH);
+
+            if (saveFlag) {
+                data_acquisition();
+                sdSave();   
+                saveFlag = false;
+            }
+        } 
+        //}
+    /*
         while (!running)
         {
             waiting=1;
@@ -159,6 +199,8 @@ void SDstateMachine(void *pvParameters)
                 saveFlag = false;
             }
         }
+    }*/
+        vTaskDelay(1);
     }
 }
 
@@ -168,7 +210,7 @@ void sdConfig()
 {
     if (!mounted)
     {
-        if (!SD.begin(SD_CS))
+        if (!SD.begin())
         {
             return;
         }
@@ -184,11 +226,11 @@ int countFiles(File dir)
 {
     int fileCountOnSD = 0; // for counting files
 
-    while (true)
+    while(true)
     {
         File entry = dir.openNextFile();
     
-        if (!entry)
+        if(!entry)
         {
             // no more files
             break;
@@ -207,15 +249,15 @@ void data_acquisition()
     volatile_packet.speed = speed_pulse_counter;
     volatile_packet.timestamp = millis();
 
-    freq_pulse_counter=0;
-    speed_pulse_counter=0;
+    freq_pulse_counter = 0;
+    speed_pulse_counter = 0;
 }
 
 void sdSave()
 {
     dataFile = SD.open(file_name, FILE_APPEND);
 
-    if (dataFile)
+    if(dataFile)
     {
         dataFile.println(packetToString());
         dataFile.close();
@@ -223,7 +265,6 @@ void sdSave()
         savingBlink = !savingBlink;
         digitalWrite(EMBEDDED_LED, savingBlink);
     }
-
     else
     {
         digitalWrite(EMBEDDED_LED, HIGH);
@@ -343,6 +384,7 @@ void ConnStateMachine(void *pvParameters)
             vTaskDelay(1);
         }
     }
+    vTaskDelay(1);
 }
 
 /*GPRS Functions*/

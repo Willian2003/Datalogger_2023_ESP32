@@ -6,6 +6,12 @@
 //Frequency of data acquisition in Hz
 #define SAMPLE_FREQ 200
 
+//Debounce
+uint64_t saveDebounceTimeout;
+//volatile bool lastState; 
+bool saveLastState;
+bool save = false;
+
 /* State Machines */
 //Ocorrerá mudanças no enum
 typedef enum {
