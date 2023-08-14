@@ -37,7 +37,6 @@ const char *ESP_password = "aratucampeaodev"; // Here's your ESP32 WIFI pass
 Ticker sdTicker;
 
 /*Global variables*/
-bool mounted = false;
 bool saveFlag = false;
 bool savingBlink = false;
 bool aberto = true;
@@ -123,17 +122,15 @@ void toggle_logging()
 
 void SDstateMachine(void *pvParameters)
 {
-    while(1)
+    while (1)
     {
         //while ((millis() - saveDebounceTimeout) > DEBOUNCETIME) {
-        while(!save) 
+        while (!save) 
         {
-            Serial.println("não");
-            digitalWrite (WAIT_LED, HIGH);
-            digitalWrite (LOG_LED, LOW);
-            digitalWrite (EMBEDDED_LED, LOW); 
+            Serial.println("Waiting mode");
+            digitalWrite(WAIT_LED, HIGH);
+            digitalWrite(LOG_LED, LOW);
 
-            mounted = false;
             detachInterrupt(digitalPinToInterrupt(freq_pin));
             detachInterrupt(digitalPinToInterrupt(speed_pin));
             sdTicker.detach();
@@ -144,62 +141,19 @@ void SDstateMachine(void *pvParameters)
         sdTicker.attach((1.0/SAMPLE_FREQ), sdCallback);
         sdConfig();
 
-        while(save) 
+        while (save) 
         {
-            Serial.println("ok");
-            digitalWrite (EMBEDDED_LED, HIGH);
-            digitalWrite (WAIT_LED, LOW);
-            digitalWrite (LOG_LED, HIGH);
+            Serial.println("Logging mode");
+            digitalWrite(WAIT_LED, LOW);
+            digitalWrite(LOG_LED, HIGH);
 
-            if (saveFlag) {
-                data_acquisition();
-                sdSave();   
-                saveFlag = false;
-            }
-        } 
-        //}
-    /*
-        while (!running)
-        {
-            waiting=1;
-            logging=0;
-
-            pinMode(WAIT_LED, waiting);
-            pinMode(LOG_LED, logging);
-            Serial.printf("\r\nrunning=%d\r\n", running);
-
-            l_state = WAITING;
-            mounted=false;
-
-            detachInterrupt(digitalPinToInterrupt(freq_pin));
-            detachInterrupt(digitalPinToInterrupt(speed_pin));
-            sdTicker.detach();
-        }   
-
-        attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
-        attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback); //Start data acquisition
-
-        sdConfig();
-         
-        while (running) 
-        {
-            waiting=0;
-            logging=1;
-
-            pinMode(WAIT_LED, waiting);
-            pinMode(LOG_LED, logging);
-
-            l_state = LOGGING;
-
-            if(saveFlag)
+            if (saveFlag) 
             {
                 data_acquisition();
                 sdSave();   
                 saveFlag = false;
             }
-        }
-    }*/
+        } 
         vTaskDelay(1);
     }
 }
@@ -208,18 +162,14 @@ void SDstateMachine(void *pvParameters)
 
 void sdConfig()
 {
-    if (!mounted)
+    if (!SD.begin())
     {
-        if (!SD.begin())
-        {
-            return;
-        }
-
-        root = SD.open("/");
-        int num_files = countFiles(root);
-        sprintf(file_name, "/%s%d.csv", "data", num_files + 1);
-        mounted = true;   
+        return;
     }
+
+    root = SD.open("/");
+    int num_files = countFiles(root);
+    sprintf(file_name, "/%s%d.csv", "data", num_files + 1);
 }
 
 int countFiles(File dir)
@@ -304,7 +254,6 @@ void speed_sensor()
 
 void ConnStateMachine(void *pvParameters)
 {
-    if (aberto) {
         // To skip it, call init() instead of restart()
         Serial.println("Initializing modem...");
         modem.restart();
@@ -380,7 +329,6 @@ void ConnStateMachine(void *pvParameters)
             mqttClient.loop();
             vTaskDelay(1);
         }
-    }
     vTaskDelay(1);
 }
 
