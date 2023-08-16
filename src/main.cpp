@@ -37,18 +37,14 @@ const char *ESP_password = "aratucampeaodev"; // Here's your ESP32 WIFI pass
 Ticker sdTicker;
 
 /*Global variables*/
-<<<<<<< HEAD
-=======
-bool first_time = false;
->>>>>>> 8038cf0 (Alterações para a leitura de cartão sd)
 bool saveFlag = false;
 bool savingBlink = false;
 bool available=false;;
 int waiting = 0;
 int logger = 0;
 bool currentState, read=false;
-uint32_t freq_pulse_counter = 0;
-uint32_t speed_pulse_counter =  0;
+uint8_t freq_pulse_counter = 0;
+uint8_t speed_pulse_counter =  0;
 unsigned long set_pointer = 0;
 
 
@@ -408,14 +404,17 @@ void publishPacket()
 void readFile()
 {
     dataFile = SD.open(file_name, FILE_READ);
-    if (dataFile) {
-        if (read) {
+    if (dataFile) 
+    {
+        if (read) 
+        {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
             Serial.println("Ok");
         }
         String linha;
 
-        if (dataFile.available()) {
+        if (dataFile.available()) 
+        {
             linha = dataFile.readStringUntil('\n');
 
             set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
@@ -442,6 +441,6 @@ void readFile()
         }
     } else {
         Serial.println("Failed to open file for reading or the file not exist");
-        if (first_time) return;
+        return;
     }
 }
