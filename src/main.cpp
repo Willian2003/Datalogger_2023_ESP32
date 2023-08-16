@@ -239,7 +239,6 @@ String packetToString()
      dataString += String(volatile_packet.speed);
      dataString += ",";
      dataString += String(volatile_packet.timestamp);
-     dataString += ",";
 
     return dataString;
 }
