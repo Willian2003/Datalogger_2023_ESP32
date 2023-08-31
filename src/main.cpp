@@ -1,8 +1,4 @@
 #include <Arduino.h>
-#include <FS.h>
-#include <Wire.h>
-#include <SPI.h>
-#include <I2S.h>
 #include <SD.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
@@ -40,13 +36,12 @@ Ticker sdTicker;
 bool saveFlag = false;
 bool savingBlink = false;
 bool available=false;;
-int waiting = 0;
-int logger = 0;
+uint8_t waiting = 0;
+uint8_t logger = 0;
 bool currentState, read=false;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
 unsigned long set_pointer = 0;
-
 
 /*Interrupt routine*/
 void toggle_logger();
@@ -85,7 +80,6 @@ void setup()
 void loop() {}
 
 /* Setup Descriptions */
-
 void setupVolatilePacket()
 {
     volatile_packet.rpm=0;
@@ -141,7 +135,7 @@ void SDstateMachine(void *pvParameters)
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
         attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach((1.0/SAMPLE_FREQ), sdCallback);
+        sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
         sdConfig();
 
         while (save) 
@@ -157,7 +151,7 @@ void SDstateMachine(void *pvParameters)
                 saveFlag = false;
             }
         }
-        first_time=true;
+        //first_time=true;
         available=true; 
         
         vTaskDelay(1);
@@ -379,8 +373,7 @@ void gsmReconnect()
             mqttClient.subscribe("/esp-test");
             digitalWrite(LED_BUILTIN, HIGH);
         }
-        else
-        {
+        else {
             Serial.print("Failed with state");
             Serial.println(mqttClient.state());
             delay(2000);
@@ -404,9 +397,10 @@ void publishPacket()
 void readFile()
 {
     dataFile = SD.open(file_name, FILE_READ);
+
     if (dataFile) 
     {
-        if (read) 
+        if(read) 
         {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
             Serial.println("Ok");
@@ -428,12 +422,8 @@ void readFile()
             String speed = linha.substring(posVirgula1 + 1, posVirgula2);
             String timestamp = linha.substring(posVirgula2 + 1);
 
-            Serial.print(rpm);
-            Serial.print(",");
-            Serial.print(speed);
-            Serial.print(",");
-            Serial.println(timestamp);
-            
+            Serial.printf("rpm=%d , speed=%d, timestamp=%d\n", rpm, speed, timestamp);
+
             read = true;
         }
         else {

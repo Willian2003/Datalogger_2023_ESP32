@@ -3,6 +3,14 @@
 
 #include <Arduino.h>
 
+#ifndef ESPRESSIF
+    #define ESPRESSIF
+    #include <FS.h>
+    #include <Wire.h>
+    #include <SPI.h>
+    #include <I2S.h>
+#endif
+
 //Frequency of data acquisition in Hz
 #define SAMPLE_FREQ 200
 
