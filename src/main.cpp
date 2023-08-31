@@ -39,15 +39,17 @@ Ticker sdTicker;
 /*Global variables*/
 bool saveFlag = false;
 bool savingBlink = false;
-bool aberto = true;
+bool available=false;;
 int waiting = 0;
-int logging = 0;
-bool currentState;
-uint16_t freq_pulse_counter = 0;
-uint16_t speed_pulse_counter =  0;
+int logger = 0;
+bool currentState, read=false;
+uint8_t freq_pulse_counter = 0;
+uint8_t speed_pulse_counter =  0;
+unsigned long set_pointer = 0;
+
 
 /*Interrupt routine*/
-void toggle_logging();
+void toggle_logger();
 void sdCallback();
 void freq_sensor();
 void speed_sensor();
@@ -61,6 +63,7 @@ void sdConfig();
 int countFiles(File dir);
 void sdSave();
 String packetToString();
+void readFile();
 /*GPRS functions*/
 void gsmCallback(char *topic, byte *payload, unsigned int length);
 void gsmReconnect();
@@ -98,7 +101,7 @@ void pinConfig()
     pinMode(WAIT_LED, OUTPUT);
     pinMode(LOG_LED, OUTPUT);
     
-    attachInterrupt(digitalPinToInterrupt(Button), toggle_logging, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(Button), toggle_logger, CHANGE);
   
   return;
 }
@@ -112,7 +115,7 @@ void taskSetup()
 }
 
 /*Interrupt of setup*/
-void toggle_logging() 
+void toggle_logger() 
 {
     saveDebounceTimeout = millis();
     save = digitalRead(Button); 
@@ -124,7 +127,6 @@ void SDstateMachine(void *pvParameters)
 {
     while (1)
     {
-        //while ((millis() - saveDebounceTimeout) > DEBOUNCETIME) {
         while (!save) 
         {
             Serial.println("Waiting mode");
@@ -134,6 +136,7 @@ void SDstateMachine(void *pvParameters)
             detachInterrupt(digitalPinToInterrupt(freq_pin));
             detachInterrupt(digitalPinToInterrupt(speed_pin));
             sdTicker.detach();
+            while(available);
         }
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
@@ -153,14 +156,17 @@ void SDstateMachine(void *pvParameters)
                 sdSave();   
                 saveFlag = false;
             }
-        } 
+        }
+        first_time=true;
+        available=true; 
+        
         vTaskDelay(1);
     }
 }
 
 /*SD functions*/
 
-void sdConfig()
+void sdConfig ()
 {
     if (!SD.begin())
     {
@@ -229,7 +235,6 @@ String packetToString()
      dataString += String(volatile_packet.speed);
      dataString += ",";
      dataString += String(volatile_packet.timestamp);
-     dataString += ",";
 
     return dataString;
 }
@@ -317,19 +322,22 @@ void ConnStateMachine(void *pvParameters)
         Serial.print("SoftAP IP address: ");
         Serial.println(WiFi.softAPIP());
 
-        while (1)
+    while (1)
+    {
+        if (!mqttClient.connected())
         {
-            if (!mqttClient.connected())
-            {
-                gsmReconnect();
-            }
-
-            publishPacket();
-
-            mqttClient.loop();
-            vTaskDelay(1);
+            gsmReconnect();
         }
-    vTaskDelay(1);
+
+        if (available)
+        {
+            readFile();
+            publishPacket();
+        }
+
+        mqttClient.loop();
+        vTaskDelay(1);
+    }
 }
 
 /*GPRS Functions*/
@@ -360,10 +368,10 @@ void gsmReconnect()
         Serial.println("Reconecting to MQTT Broker..");
         String clientId = "ESP32Client-";
         clientId += String(random(0xffff), HEX);
-        if (mqttClient.connect(clientId.c_str(), "manguebaja", "aratucampeao", "/esp-connected", 2, true, "Offline", true))
+        if (mqttClient.connect(clientId.c_str(), "manguebaja", "aratucampeao", "/online", 2, true, "Offline", true))
         {
             sprintf(msg, "%s", "Online");
-            mqttClient.publish("/esp-connected", msg);
+            mqttClient.publish("/online", msg);
             memset(msg, 0, sizeof(msg));
             Serial.println("Connected.");
 
@@ -390,5 +398,49 @@ void publishPacket()
 
     memset(msg, 0, sizeof(msg));
     serializeJson(doc, msg);
-    mqttClient.publish("/logging", msg);
+    mqttClient.publish("/logger", msg);
+}
+
+void readFile()
+{
+    dataFile = SD.open(file_name, FILE_READ);
+    if (dataFile) 
+    {
+        if (read) 
+        {
+            dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
+            Serial.println("Ok");
+        }
+        String linha;
+
+        if (dataFile.available()) 
+        {
+            linha = dataFile.readStringUntil('\n');
+
+            set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
+
+            // Separar os valores usando a vírgula como delimitador
+            int posVirgula1 = linha.indexOf(',');
+            int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
+
+            // Extrair os valores de cada sensor
+            String rpm = linha.substring(0, posVirgula1);
+            String speed = linha.substring(posVirgula1 + 1, posVirgula2);
+            String timestamp = linha.substring(posVirgula2 + 1);
+
+            Serial.print(rpm);
+            Serial.print(",");
+            Serial.print(speed);
+            Serial.print(",");
+            Serial.println(timestamp);
+            
+            read = true;
+        }
+        else {
+            available=false;
+        }
+    } else {
+        Serial.println("Failed to open file for reading or the file not exist");
+        return;
+    }
 }
