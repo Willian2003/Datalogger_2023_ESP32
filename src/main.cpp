@@ -39,7 +39,7 @@ Ticker sdTicker;
 /*Global variables*/
 bool saveFlag = false;
 bool savingBlink = false;
-bool available=false;;
+bool available=false;
 int waiting = 0;
 int logger = 0;
 bool currentState, read=false;
@@ -157,7 +157,6 @@ void SDstateMachine(void *pvParameters)
                 saveFlag = false;
             }
         }
-        first_time=true;
         available=true; 
         
         vTaskDelay(1);
@@ -235,6 +234,7 @@ String packetToString()
      dataString += String(volatile_packet.speed);
      dataString += ",";
      dataString += String(volatile_packet.timestamp);
+     dataString += ",";
 
     return dataString;
 }
@@ -422,11 +422,12 @@ void readFile()
             // Separar os valores usando a vírgula como delimitador
             int posVirgula1 = linha.indexOf(',');
             int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
+            int posVirgula3 = linha.lastIndexOf(',');
 
             // Extrair os valores de cada sensor
             String rpm = linha.substring(0, posVirgula1);
             String speed = linha.substring(posVirgula1 + 1, posVirgula2);
-            String timestamp = linha.substring(posVirgula2 + 1);
+            String timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
             Serial.print(rpm);
             Serial.print(",");
