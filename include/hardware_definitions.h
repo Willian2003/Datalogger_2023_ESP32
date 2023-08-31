@@ -3,9 +3,9 @@
 
 /* pinout definitions */
 // LEDS
-#define EMBEDDED_LED 2 // Turned on on failiure
-#define WAIT_LED 14 //Turned on when the button is presses of
-#define LOG_LED 12 //Turned on if the logging run
+#define EMBEDDED_LED 2  // Turned on on failiure
+#define WAIT_LED     14 // Turned on when the button is presses of
+#define LOG_LED      12 // Turned on if the logging run
 
 //SD
 #define SD_CS 5
