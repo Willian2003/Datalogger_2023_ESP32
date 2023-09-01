@@ -404,7 +404,6 @@ void readFile()
         if(read) 
         {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-            Serial.println("Ok");
         }
         String linha;
 
@@ -424,7 +423,7 @@ void readFile()
             String speed = linha.substring(posVirgula1 + 1, posVirgula2);
             String timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
-            Serial.printf("rpm=%d , speed=%d, timestamp=%d\n", rpm, speed, timestamp);
+            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
 
             read = true;
         }
