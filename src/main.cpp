@@ -36,7 +36,7 @@ Ticker sdTicker;
 // Packet constantly saved
 packet_t volatile_packet;
 int err;
-bool mounted=false;
+bool mounted = false;
 bool saveFlag = false;
 bool available = false;
 bool read_state = false;
@@ -376,15 +376,16 @@ void ConnStateMachine(void *pvParameters)
 
     while (1)
     {
-        if (!mqttClient.connected())
+        if(!mqttClient.connected())
         {
             gsmReconnect();
         }
 
-        if (available)
+        if(available)
         {
             readFile();
             publishPacket();
+            available=false;
         }
 
         mqttClient.loop();
@@ -454,19 +455,21 @@ void publishPacket()
 
 void readFile()
 {
+    String linha;
+    
     dataFile = SD.open(file_name, FILE_READ);
 
-    if (dataFile) 
-    {
-        if(read_state) 
+    //if (dataFile) 
+    //{
+        
+        while(dataFile.available()) 
         {
-            dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-            Serial.println("Ok");
-        }
-        String linha;
+            if(read_state) 
+            {
+                dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
+                Serial.println("read state ok!!");
+            }
 
-        if (dataFile.available()) 
-        {
             linha = dataFile.readStringUntil('\n');
 
             set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
@@ -484,11 +487,12 @@ void readFile()
 
             read_state = true;
         }
-        else {
-            available=false;
-        }
-    } else {
-        Serial.println("Failed to open file for reading or the file not exist");
-        return;
-    }
+        //else {
+        read_state=false;
+        set_pointer=0;
+        //}
+    //} else {
+    //    Serial.println("Failed to open file for reading or the file not exist");
+    //    return;
+    //}
 }
