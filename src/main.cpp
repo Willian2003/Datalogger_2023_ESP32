@@ -9,16 +9,22 @@
 #include "saving.h"
                                                                             
 // GPRS credentials
-const char apn[] = "timbrasil.br";    // Your APN
-const char gprsUser[] = "tim";         // User
-const char gprsPass[] = "tim";         // Password
-const char simPIN[] = "1010";          // SIM card PIN code, if any
+// const char apn[] = "timbrasil.br";    // Your APN
+// const char gprsUser[] = "tim";         // User
+// const char gprsPass[] = "tim";         // Password
+// const char simPIN[] = "1010";          // SIM card PIN code, if any
 
 /*Configuração padrão da datelo*/
 /*const char apn[] = "datelo.nlt.br";    // Your APN
 const char gprsUser[] = "nlt";         // User
 const char gprsPass[] = "nlt";         // Password
 const char simPIN[] = "6214";          // SIM card PIN code, if any*/
+
+// Configuração padrão da claro
+const char apn[] = "claro.com.br";      // Your APN
+const char gprsUser[] = "claro";        // User
+const char gprsPass[] = "claro";        // Password
+const char simPIN[] = "3636";           // SIM cad PIN code, id any
 
 const char *server = "64.227.19.172";
 char msg[MSG_BUFFER_SIZE];
