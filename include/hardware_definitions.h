@@ -10,9 +10,6 @@
 //SD
 #define SD_CS 5
 
-//Debounce
-#define DEBOUNCETIME 100
-
 //Sensors
 //Pinos imaginarios, também ocorrerá mudanças
 #define freq_pin 21
