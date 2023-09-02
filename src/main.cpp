@@ -38,7 +38,7 @@ bool savingBlink = false;
 bool available=false;;
 uint8_t waiting = 0;
 uint8_t logger = 0;
-bool currentState, read=false;
+bool currentState, ler=false;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
 unsigned long set_pointer = 0;
@@ -123,14 +123,17 @@ void SDstateMachine(void *pvParameters)
     {
         while (!save) 
         {
-            Serial.println("Waiting mode");
+            // Serial.println("Waiting mode");
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
 
             detachInterrupt(digitalPinToInterrupt(freq_pin));
             detachInterrupt(digitalPinToInterrupt(speed_pin));
             sdTicker.detach();
-            while(available);
+            while(available){
+                vTaskDelay(1);
+            }
+            vTaskDelay(1);
         }
 
         attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
@@ -140,7 +143,7 @@ void SDstateMachine(void *pvParameters)
 
         while (save) 
         {
-            Serial.println("Logging mode");
+            // Serial.println("Logging mode");
             digitalWrite(WAIT_LED, LOW);
             digitalWrite(LOG_LED, HIGH);
 
@@ -150,6 +153,7 @@ void SDstateMachine(void *pvParameters)
                 sdSave();   
                 saveFlag = false;
             }
+            vTaskDelay(1);
         }
         //first_time=true;
         available=true; 
@@ -401,7 +405,7 @@ void readFile()
 
     if (dataFile) 
     {
-        if(read) 
+        if(ler) 
         {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
         }
@@ -423,9 +427,9 @@ void readFile()
             String speed = linha.substring(posVirgula1 + 1, posVirgula2);
             String timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
-            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
+            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n\n", rpm, speed, timestamp);
 
-            read = true;
+            ler = true;
         }
         else {
             available=false;
