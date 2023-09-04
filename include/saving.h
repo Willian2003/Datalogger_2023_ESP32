@@ -19,6 +19,4 @@ char file_name[20];
 File root;
 File dataFile;
 
-boolean running=false;
-
 #endif
