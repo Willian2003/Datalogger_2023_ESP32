@@ -124,7 +124,7 @@ void SDstateMachine(void *pvParameters)
     {
         do {
             Serial.println("Montando cartão SD...");
-
+          
             err = sdConfig();
             Serial.printf("%s\n", (err==MOUNT_ERROR ? "Falha ao montar o cartão" : err==FILE_ERROR ? "Falha ao abrir o arquivo" : "Arquivo ok"));
             
@@ -133,7 +133,7 @@ void SDstateMachine(void *pvParameters)
                 dataFile.close();
                 break;
             }
-
+          
             else if(err==MOUNT_ERROR) 
             {
                 Serial.println("Iniciando tentativa de conexão");
@@ -149,9 +149,8 @@ void SDstateMachine(void *pvParameters)
                     }
                     vTaskDelay(1);
                 }
-                
                 vTaskDelay(1);
-                
+              
                 if(!mounted)
                 {
                     Serial.println("SD não montado, resetando em 1s...");
@@ -164,7 +163,9 @@ void SDstateMachine(void *pvParameters)
             }
                    
         } while(err!=FILE_OK);
-        
+      
+        Serial.println("Waiting mode");
+      
         digitalWrite(WAIT_LED, HIGH);
         digitalWrite(LOG_LED, LOW);
 
@@ -174,7 +175,6 @@ void SDstateMachine(void *pvParameters)
 
         while(!running)
         {
-            // Serial.println("Waiting mode");
             while(available)
             {
                 digitalWrite(WAIT_LED, HIGH);
@@ -184,9 +184,7 @@ void SDstateMachine(void *pvParameters)
                 digitalWrite(WAIT_LED, LOW);
                 digitalWrite(LOG_LED, LOW);
                 delay(500);
-                //break;
             }
-            //available=false;
 
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
@@ -195,6 +193,7 @@ void SDstateMachine(void *pvParameters)
         }
 
         Serial.println("Logging mode");
+      
         digitalWrite(WAIT_LED, LOW);
         digitalWrite(LOG_LED, HIGH);
 
@@ -220,7 +219,7 @@ void SDstateMachine(void *pvParameters)
         }
 
         available=true;
-
+      
         vTaskDelay(1);
     }
 }
@@ -293,7 +292,6 @@ String packetToString()
      dataString += String(volatile_packet.speed);
      dataString += ",";
      dataString += String(volatile_packet.timestamp);
-     dataString += ",";
 
     return dataString;
 }
@@ -474,7 +472,7 @@ void readFile()
             if(read_state) 
             {
                 dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-                //Serial.println("read state ok!!");
+                Serial.println("read state ok!!");
             }
 
             linha = dataFile.readStringUntil('\n');
@@ -493,7 +491,6 @@ void readFile()
             Serial.printf("rpm=%s , speed=%s, timestamp=%s\n", rpm, speed, timestamp);
 
             read_state = true;
-
         }
         //else {
         read_state=false;
