@@ -2,8 +2,8 @@
 #define GPRS_DEFS_H_
 
 #define SerialAT Serial2 // Set serial for AT commands (to the module)
-#define MODEM_TX 33
-#define MODEM_RX 32
+#define MODEM_TX 17
+#define MODEM_RX 16
 #define PORT     1883
 //#define PORT 1880 //Test for mqtt connection
 // Configure TinyGSM library

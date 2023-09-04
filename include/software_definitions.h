@@ -14,12 +14,8 @@
 //Frequency of data acquisition in Hz
 #define SAMPLE_FREQ 200
 
-//Debounce
-#define DEBOUNCETIME 100
-uint64_t saveDebounceTimeout=0;
 //volatile bool lastState; 
-bool saveLastState;
-bool save = false;
+bool running = false;
 
 /* State Machines */
 //Ocorrerá mudanças no enum

@@ -14,12 +14,6 @@
 // const char gprsPass[] = "tim";         // Password
 // const char simPIN[] = "1010";          // SIM card PIN code, if any
 
-/*Configuração padrão da datelo*/
-/*const char apn[] = "datelo.nlt.br";    // Your APN
-const char gprsUser[] = "nlt";         // User
-const char gprsPass[] = "nlt";         // Password
-const char simPIN[] = "6214";          // SIM card PIN code, if any*/
-
 // Configuração padrão da claro
 const char apn[] = "claro.com.br";      // Your APN
 const char gprsUser[] = "claro";        // User
@@ -119,8 +113,8 @@ void taskSetup()
 /*Interrupt of setup*/
 void toggle_logger() 
 {
-    saveDebounceTimeout = millis();
-    save = digitalRead(Button); 
+    //saveDebounceTimeout = millis();
+    running = digitalRead(Button); 
 }
 
 /*SD State Machine*/
@@ -131,15 +125,16 @@ void SDstateMachine(void *pvParameters)
     {
         do {
             Serial.println("Montando cartão SD...");
-
+          
             err = sdConfig();
             Serial.printf("%s\n", (err==MOUNT_ERROR ? "Falha ao montar o cartão" : err==FILE_ERROR ? "Falha ao abrir o arquivo" : "Arquivo ok"));
-
+            
             if(err==FILE_OK)
             {
                 dataFile.close();
+                break;
             }
-
+          
             else if(err==MOUNT_ERROR) 
             {
                 Serial.println("Iniciando tentativa de conexão");
@@ -155,7 +150,8 @@ void SDstateMachine(void *pvParameters)
                     }
                     vTaskDelay(1);
                 }
-
+                vTaskDelay(1);
+              
                 if(!mounted)
                 {
                     Serial.println("SD não montado, resetando em 1s...");
@@ -168,60 +164,63 @@ void SDstateMachine(void *pvParameters)
             }
                    
         } while(err!=FILE_OK);
-        
-        if((millis()-saveDebounceTimeout)<DEBOUNCETIME)
+      
+        Serial.println("Waiting mode");
+      
+        digitalWrite(WAIT_LED, HIGH);
+        digitalWrite(LOG_LED, LOW);
+
+        detachInterrupt(digitalPinToInterrupt(freq_pin));
+        detachInterrupt(digitalPinToInterrupt(speed_pin));
+        sdTicker.detach();
+
+        while(!running)
         {
+            while(available)
+            {
+                digitalWrite(WAIT_LED, HIGH);
+                digitalWrite(LOG_LED, HIGH);
+                Serial.println("Reading mode, please wait!");
+                delay(500);
+                digitalWrite(WAIT_LED, LOW);
+                digitalWrite(LOG_LED, LOW);
+                delay(500);
+            }
+
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
-
-            detachInterrupt(digitalPinToInterrupt(freq_pin));
-            detachInterrupt(digitalPinToInterrupt(speed_pin));
-            sdTicker.detach();
-
-            while(!save)
-            {
-                Serial.println("Waiting mode");
-                while(available)
-                {
-                    digitalWrite(WAIT_LED, HIGH);
-                    digitalWrite(LOG_LED, HIGH);
-                    Serial.println("Reading mode, please wait!");
-                    delay(500);
-                    digitalWrite(WAIT_LED, LOW);
-                    digitalWrite(LOG_LED, LOW);
-                }
-                
-                vTaskDelay(1);
-            }
-
-            Serial.println("Logging mode");
-            digitalWrite(WAIT_LED, LOW);
-            digitalWrite(LOG_LED, HIGH);
-
-            attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
-            attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-            sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
-
-            while(save)
-            {
-                if(saveFlag)
-                {
-                    volatile_packet.rpm = freq_pulse_counter;
-                    volatile_packet.speed = speed_pulse_counter;
-                    volatile_packet.timestamp = millis();
-
-                    freq_pulse_counter = 0;
-                    speed_pulse_counter = 0;
-
-                    sdSave();   
-                    saveFlag = false;
-                }
-                vTaskDelay(1);
-            }
-
-            available=true;
+            
+            vTaskDelay(1);
         }
 
+        Serial.println("Logging mode");
+      
+        digitalWrite(WAIT_LED, LOW);
+        digitalWrite(LOG_LED, HIGH);
+
+        attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
+        attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
+        sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
+
+        while(running)
+        {
+            if(saveFlag)
+            {
+                volatile_packet.rpm = freq_pulse_counter;
+                volatile_packet.speed = speed_pulse_counter;
+                volatile_packet.timestamp = millis();
+
+                freq_pulse_counter = 0;
+                speed_pulse_counter = 0;
+
+                sdSave();   
+                saveFlag = false;
+            }
+            vTaskDelay(1);
+        }
+
+        available=true;
+      
         vTaskDelay(1);
     }
 }
