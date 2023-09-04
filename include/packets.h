@@ -11,7 +11,4 @@ typedef struct
     
 } packet_t;
 
-// Packet constantly saved
-packet_t volatile_packet;
-
 #endif

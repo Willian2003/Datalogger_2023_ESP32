@@ -15,7 +15,8 @@
 #define SAMPLE_FREQ 200
 
 //Debounce
-uint64_t saveDebounceTimeout;
+#define DEBOUNCETIME 100
+uint64_t saveDebounceTimeout=0;
 //volatile bool lastState; 
 bool saveLastState;
 bool save = false;
@@ -27,8 +28,6 @@ typedef enum {
     WAITING,
     LOGGING
 } logging_states;
-
-typedef enum {} connectivity_states;
 
 logging_states l_state; // datalogger state
 

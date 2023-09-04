@@ -39,14 +39,16 @@ const char *ESP_password = "aratucampeaodev"; // Here's your ESP32 WIFI pass
 Ticker sdTicker;
 
 /*Global variables*/
+// Packet constantly saved
+packet_t volatile_packet;
+int err;
+bool mounted = false;
 bool saveFlag = false;
-bool savingBlink = false;
-bool available=false;;
-uint8_t waiting = 0;
-uint8_t logger = 0;
-bool currentState, ler=false;
+bool available = false;
+bool read_state = false;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
+unsigned long start=0, timeout=5000; //5 segundos 
 unsigned long set_pointer = 0;
 
 /*Interrupt routine*/
@@ -58,9 +60,8 @@ void speed_sensor();
 void pinConfig();
 void setupVolatilePacket();
 void taskSetup();
-void data_acquisition();
-/*SD functions*/
-void sdConfig();
+// SD functions
+int sdConfig();
 int countFiles(File dir);
 void sdSave();
 String packetToString();
@@ -88,9 +89,9 @@ void loop() {}
 /* Setup Descriptions */
 void setupVolatilePacket()
 {
-    volatile_packet.rpm=0;
-    volatile_packet.speed=0;
-    volatile_packet.timestamp=0;
+    volatile_packet.rpm = 0;
+    volatile_packet.speed = 0;
+    volatile_packet.timestamp = 0;
 }
 
 void pinConfig()
@@ -127,59 +128,124 @@ void SDstateMachine(void *pvParameters)
 {
     while (1)
     {
-        while (!save) 
+        do {
+            Serial.println("Montando cartão SD...");
+
+            err = sdConfig();
+            Serial.printf("%s\n", (err==MOUNT_ERROR ? "Falha ao montar o cartão" : err==FILE_ERROR ? "Falha ao abrir o arquivo" : "Arquivo ok"));
+
+            if(err==FILE_OK)
+            {
+                dataFile.close();
+            }
+
+            else if(err==MOUNT_ERROR) 
+            {
+                Serial.println("Iniciando tentativa de conexão");
+                start=millis();
+
+                while((millis()-start)<timeout)
+                {
+                    if(sdConfig()==FILE_OK)
+                    {
+                        Serial.println("Reconexão Feita!!!");
+                        mounted=true;
+                        break;
+                    }
+                    vTaskDelay(1);
+                }
+
+                if(!mounted)
+                {
+                    Serial.println("SD não montado, resetando em 1s...");
+                    delay(1000);
+                    esp_restart();
+                }
+            } else {
+                Serial.println("Selecione outro SD!");
+                return;
+            }
+                   
+        } while(err!=FILE_OK);
+        
+        if((millis()-saveDebounceTimeout)<DEBOUNCETIME)
         {
-            // Serial.println("Waiting mode");
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
 
             detachInterrupt(digitalPinToInterrupt(freq_pin));
             detachInterrupt(digitalPinToInterrupt(speed_pin));
             sdTicker.detach();
-            while(available){
+
+            while(!save)
+            {
+                Serial.println("Waiting mode");
+                while(available)
+                {
+                    digitalWrite(WAIT_LED, HIGH);
+                    digitalWrite(LOG_LED, HIGH);
+                    Serial.println("Reading mode, please wait!");
+                    delay(500);
+                    digitalWrite(WAIT_LED, LOW);
+                    digitalWrite(LOG_LED, LOW);
+                }
+                
                 vTaskDelay(1);
             }
-            vTaskDelay(1);
-        }
 
-        attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
-        attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
-        sdConfig();
-
-        while (save) 
-        {
-            // Serial.println("Logging mode");
+            Serial.println("Logging mode");
             digitalWrite(WAIT_LED, LOW);
             digitalWrite(LOG_LED, HIGH);
 
-            if (saveFlag) 
+            attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
+            attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
+            sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
+
+            while(save)
             {
-                data_acquisition();
-                sdSave();   
-                saveFlag = false;
+                if(saveFlag)
+                {
+                    volatile_packet.rpm = freq_pulse_counter;
+                    volatile_packet.speed = speed_pulse_counter;
+                    volatile_packet.timestamp = millis();
+
+                    freq_pulse_counter = 0;
+                    speed_pulse_counter = 0;
+
+                    sdSave();   
+                    saveFlag = false;
+                }
+                vTaskDelay(1);
             }
-            vTaskDelay(1);
+
+            available=true;
         }
-        //first_time=true;
-        available=true; 
-        
+
         vTaskDelay(1);
     }
 }
 
 /*SD functions*/
 
-void sdConfig ()
+int sdConfig ()
 {
     if (!SD.begin())
     {
-        return;
+        return MOUNT_ERROR;
     }
 
     root = SD.open("/");
     int num_files = countFiles(root);
-    sprintf(file_name, "/%s%d.csv", "data", num_files + 1);
+    sprintf(file_name, "/%s%d.csv", "data", num_files);
+
+    dataFile = SD.open(file_name, FILE_APPEND);
+
+    if (dataFile)
+    {
+        return FILE_OK;
+    } else {
+        return FILE_ERROR;
+    }    
 }
 
 int countFiles(File dir)
@@ -203,31 +269,19 @@ int countFiles(File dir)
     return fileCountOnSD-1;
 }
 
-void data_acquisition()
-{
-    volatile_packet.rpm = freq_pulse_counter;
-    volatile_packet.speed = speed_pulse_counter;
-    volatile_packet.timestamp = millis();
-
-    freq_pulse_counter = 0;
-    speed_pulse_counter = 0;
-}
-
 void sdSave()
 {
     dataFile = SD.open(file_name, FILE_APPEND);
 
-    if (dataFile)
-    {
-        dataFile.println(packetToString());
-        dataFile.close();
+    dataFile.println(packetToString());
+    dataFile.close();
+    //if (dataFile)
+    //{
     
-        savingBlink = !savingBlink;
-        digitalWrite(EMBEDDED_LED, savingBlink);
-    } else {
+    /*} else {
         digitalWrite(EMBEDDED_LED, HIGH);
         Serial.println("falha no save");
-    }
+    }*/
 }
 
 String packetToString()
@@ -329,15 +383,16 @@ void ConnStateMachine(void *pvParameters)
 
     while (1)
     {
-        if (!mqttClient.connected())
+        if(!mqttClient.connected())
         {
             gsmReconnect();
         }
 
-        if (available)
+        if(available)
         {
             readFile();
             publishPacket();
+            available=false;
         }
 
         mqttClient.loop();
@@ -407,18 +462,21 @@ void publishPacket()
 
 void readFile()
 {
+    String linha;
+    
     dataFile = SD.open(file_name, FILE_READ);
 
-    if (dataFile) 
-    {
-        if(ler) 
+    //if (dataFile) 
+    //{
+        
+        while(dataFile.available()) 
         {
-            dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-        }
-        String linha;
+            if(read_state) 
+            {
+                dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
+                Serial.println("read state ok!!");
+            }
 
-        if (dataFile.available()) 
-        {
             linha = dataFile.readStringUntil('\n');
 
             set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
@@ -433,15 +491,16 @@ void readFile()
             String speed = linha.substring(posVirgula1 + 1, posVirgula2);
             String timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
-            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n\n", rpm, speed, timestamp);
+            Serial.printf("rpm=%s , speed=%s, timestamp=%s\n", rpm, speed, timestamp);
 
-            ler = true;
+            read_state = true;
         }
-        else {
-            available=false;
-        }
-    } else {
-        Serial.println("Failed to open file for reading or the file not exist");
-        return;
-    }
+        //else {
+        read_state=false;
+        set_pointer=0;
+        //}
+    //} else {
+    //    Serial.println("Failed to open file for reading or the file not exist");
+    //    return;
+    //}
 }
