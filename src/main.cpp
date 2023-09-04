@@ -46,6 +46,7 @@ bool mounted = false;
 bool saveFlag = false;
 bool available = false;
 bool read_state = false;
+String rpm, speed, timestamp;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
 unsigned long start=0, timeout=5000; //5 segundos 
@@ -391,7 +392,6 @@ void ConnStateMachine(void *pvParameters)
         if(available)
         {
             readFile();
-            publishPacket();
             available=false;
         }
 
@@ -451,9 +451,9 @@ void publishPacket()
 {
     StaticJsonDocument<300> doc;
 
-    doc["rpm"] = volatile_packet.rpm;
-    doc["speed"] = (volatile_packet.speed);
-    doc["TimeStamp"] = (volatile_packet.timestamp);
+    doc["rpm"] = (rpm);
+    doc["speed"] = (speed);
+    doc["TimeStamp"] = (timestamp);
 
     memset(msg, 0, sizeof(msg));
     serializeJson(doc, msg);
@@ -474,7 +474,7 @@ void readFile()
             if(read_state) 
             {
                 dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-                Serial.println("read state ok!!");
+                // Serial.println("Read state ok!!");
             }
 
             linha = dataFile.readStringUntil('\n');
@@ -487,11 +487,13 @@ void readFile()
             int posVirgula3 = linha.lastIndexOf(',');
 
             // Extrair os valores de cada sensor
-            String rpm = linha.substring(0, posVirgula1);
-            String speed = linha.substring(posVirgula1 + 1, posVirgula2);
-            String timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
+            rpm = linha.substring(0, posVirgula1);
+            speed = linha.substring(posVirgula1 + 1, posVirgula2);
+            timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
-            Serial.printf("rpm=%s , speed=%s, timestamp=%s\n", rpm, speed, timestamp);
+            publishPacket();
+
+            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
 
             read_state = true;
         }
