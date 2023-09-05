@@ -7,18 +7,28 @@
 #include "gprs_defs.h"
 #include "software_definitions.h"
 #include "saving.h"
-                                                                            
-// GPRS credentials
-// const char apn[] = "timbrasil.br";    // Your APN
-// const char gprsUser[] = "tim";         // User
-// const char gprsPass[] = "tim";         // Password
-// const char simPIN[] = "1010";          // SIM card PIN code, if any
 
-// Configuração padrão da claro
-const char apn[] = "claro.com.br";      // Your APN
-const char gprsUser[] = "claro";        // User
-const char gprsPass[] = "claro";        // Password
-const char simPIN[] = "3636";           // SIM cad PIN code, id any
+//#define TIM   //Uncomment this line and comment the others if this is your chip
+#define CLARO   //Uncomment this line and comment the others if this is your chip
+//#define VIVO  //Uncomment this line and comment the others if this is your chip
+
+// GPRS credentials
+#ifdef TIM
+    const char apn[] = "timbrasil.br";    // Your APN
+    const char gprsUser[] = "tim";        // User
+    const char gprsPass[] = "tim";        // Password
+    const char simPIN[] = "1010";         // SIM card PIN code, if any
+#elif defined(CLARO)
+    const char apn[] = "claro.com.br";    // Your APN
+    const char gprsUser[] = "claro";      // User
+    const char gprsPass[] = "claro";      // Password
+    const char simPIN[] = "3636";         // SIM cad PIN code, id any
+#elif defined(VIVO)
+    const char apn[] = "zap.vivo.com.br";  // Your APN
+    const char gprsUser[] = "vivo";        // User
+    const char gprsPass[] = "vivo";        // Password
+    const char simPIN[] = "8486";          // SIM cad PIN code, id any
+#endif
 
 const char *server = "64.227.19.172";
 char msg[MSG_BUFFER_SIZE];
@@ -35,37 +45,35 @@ Ticker sdTicker;
 /*Global variables*/
 // Packet constantly saved
 packet_t volatile_packet;
+String rpm, speed, timestamp;
 int err;
 bool mounted = false;
 bool saveFlag = false;
 bool available = false;
-bool read_state = false;
-String rpm, speed, timestamp;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
-unsigned long start=0, timeout=5000; //5 segundos 
-unsigned long set_pointer = 0;
+unsigned long start=0, timeout=5000; // 5 sec
 
-/*Interrupt routine*/
+/* Interrupt routine */
 void toggle_logger();
 void sdCallback();
 void freq_sensor();
 void speed_sensor();
-/*General Functions*/
-void pinConfig();
+/* General Functions */
 void setupVolatilePacket();
+void pinConfig();
 void taskSetup();
 // SD functions
 int sdConfig();
 int countFiles(File dir);
 void sdSave();
 String packetToString();
-void readFile();
-/*GPRS functions*/
+/* GPRS functions */
 void gsmCallback(char *topic, byte *payload, unsigned int length);
 void gsmReconnect();
+void readFile();
 void publishPacket();
-/*States Machines*/
+/* States Machines */
 void SDstateMachine(void *pvParameters);
 void ConnStateMachine(void *pvParameters);
 
@@ -91,7 +99,7 @@ void setupVolatilePacket()
 
 void pinConfig()
 {
-    /*Pins*/
+    /* Pins */
     pinMode(Button, INPUT_PULLUP);
     pinMode(EMBEDDED_LED, OUTPUT);
     pinMode(WAIT_LED, OUTPUT);
@@ -110,7 +118,7 @@ void taskSetup()
   // This state machine is responsible for the GPRS and possible bluetooth connection
 }
 
-/*Interrupt of setup*/
+/* Interrupt of setup */
 void toggle_logger() 
 {
     //saveDebounceTimeout = millis();
@@ -118,16 +126,15 @@ void toggle_logger()
 }
 
 /*SD State Machine*/
-
 void SDstateMachine(void *pvParameters)
 {
     while (1)
     {
         do {
-            Serial.println("Montando cartão SD...");
+            Serial.println("Mounting SD card...");
           
             err = sdConfig();
-            Serial.printf("%s\n", (err==MOUNT_ERROR ? "Falha ao montar o cartão" : err==FILE_ERROR ? "Falha ao abrir o arquivo" : "Arquivo ok"));
+            Serial.printf("%s\n", (err==MOUNT_ERROR ? "Failed to mount the card" : err==FILE_ERROR ? "Failed to open the file" : "ok file"));
             
             if(err==FILE_OK)
             {
@@ -137,14 +144,14 @@ void SDstateMachine(void *pvParameters)
           
             else if(err==MOUNT_ERROR) 
             {
-                Serial.println("Iniciando tentativa de conexão");
+                Serial.println("Initiating connection attempt");
                 start=millis();
 
                 while((millis()-start)<timeout)
                 {
                     if(sdConfig()==FILE_OK)
                     {
-                        Serial.println("Reconexão Feita!!!");
+                        Serial.println("Reconnection Done!!!");
                         mounted=true;
                         break;
                     }
@@ -154,12 +161,12 @@ void SDstateMachine(void *pvParameters)
               
                 if(!mounted)
                 {
-                    Serial.println("SD não montado, resetando em 1s...");
+                    Serial.println("SD not mounted, resetting in 1s...");
                     delay(1000);
                     esp_restart();
                 }
             } else {
-                Serial.println("Selecione outro SD!");
+                Serial.println("Select another SD!");
                 return;
             }
                    
@@ -226,7 +233,6 @@ void SDstateMachine(void *pvParameters)
 }
 
 /*SD functions*/
-
 int sdConfig ()
 {
     if (!SD.begin())
@@ -236,11 +242,11 @@ int sdConfig ()
 
     root = SD.open("/");
     int num_files = countFiles(root);
-    sprintf(file_name, "/%s%d.csv", "data", num_files);
+    sprintf(file_name, "/%s%d.csv", "data", num_files+1);
 
     dataFile = SD.open(file_name, FILE_APPEND);
 
-    if (dataFile)
+    if(dataFile)
     {
         return FILE_OK;
     } else {
@@ -286,7 +292,6 @@ void sdSave()
 
 String packetToString()
 {
-    //Aqui vai guardar os valores dos sensores
     String dataString = "";
      dataString += String(volatile_packet.rpm);
      dataString += ",";
@@ -315,71 +320,70 @@ void speed_sensor()
 }
 
 /*Conectivity State Machine*/
-
 void ConnStateMachine(void *pvParameters)
 {
-        // To skip it, call init() instead of restart()
-        Serial.println("Initializing modem...");
-        modem.restart();
-        // Or, use modem.init() if you don't need the complete restart
+    // To skip it, call init() instead of restart()
+    Serial.println("Initializing modem...");
+    modem.restart();
+    // Or, use modem.init() if you don't need the complete restart
 
-        String modemInfo = modem.getModemInfo();
-        Serial.print("Modem: ");
-        Serial.println(modemInfo);
+    String modemInfo = modem.getModemInfo();
+    Serial.print("Modem: ");
+    Serial.println(modemInfo);
 
-        int modemstatus = modem.getSimStatus();
-        Serial.print("Status: ");
-        Serial.println(modemstatus);
+    int modemstatus = modem.getSimStatus();
+    Serial.print("Status: ");
+    Serial.println(modemstatus);
 
-        // Unlock your SIM card with a PIN if needed
-        if (strlen(simPIN) && modem.getSimStatus() != 3)
-        {
-            modem.simUnlock(simPIN);
-        }
+    // Unlock your SIM card with a PIN if needed
+    if (strlen(simPIN) && modem.getSimStatus() != 3)
+    {
+        modem.simUnlock(simPIN);
+    }
 
-        Serial.print("Waiting for network...");
-        if (!modem.waitForNetwork(240000L))
-        {
-            Serial.println(" fail");
-            delay(10000);
-            return;
-        }
-        Serial.println(" OK");
+    Serial.print("Waiting for network...");
+    if (!modem.waitForNetwork(240000L))
+    {
+        Serial.println(" fail");
+        delay(10000);
+        return;
+    }
+    Serial.println(" OK");
 
-        if (modem.isNetworkConnected())
-        {
-            Serial.println("Network connected");
-        }
+    if (modem.isNetworkConnected())
+    {
+        Serial.println("Network connected");
+    }
 
-        Serial.print(F("Connecting to APN: "));
-        Serial.print(apn);
-        if (!modem.gprsConnect(apn, gprsUser, gprsPass))
-        {
-            Serial.println(" fail");
-            delay(10000);
-            return;
-        }
-        Serial.println(" OK");
+    Serial.print(F("Connecting to APN: "));
+    Serial.print(apn);
+    if (!modem.gprsConnect(apn, gprsUser, gprsPass))
+    {
+        Serial.println(" fail");
+        delay(10000);
+        return;
+    }
+    Serial.println(" OK");
 
-        // Wi-Fi Config and Debug
-        WiFi.mode(WIFI_MODE_AP);
-        WiFi.softAP(ESP_ssid, ESP_password);
+    // Wi-Fi Config and Debug
+    WiFi.mode(WIFI_MODE_AP);
+    WiFi.softAP(ESP_ssid, ESP_password);
 
-        if (!MDNS.begin(host)) // Use MDNS to solve DNS
-        {
-            // http://esp32.local
-            Serial.println("Error configuring mDNS. Rebooting in 1s...");
-            delay(1000);
-            ESP.restart();
-        }
-        Serial.println("mDNS configured;");
+    if (!MDNS.begin(host)) // Use MDNS to solve DNS
+    {
+        // http://esp32.local
+        Serial.println("Error configuring mDNS. Rebooting in 1s...");
+        delay(1000);
+        ESP.restart();
+    }
+    Serial.println("mDNS configured;");
 
-        mqttClient.setServer(server, PORT);
-        mqttClient.setCallback(gsmCallback);
+    mqttClient.setServer(server, PORT);
+    mqttClient.setCallback(gsmCallback);
 
-        Serial.println("Ready");
-        Serial.print("SoftAP IP address: ");
-        Serial.println(WiFi.softAPIP());
+    Serial.println("Ready");
+    Serial.print("SoftAP IP address: ");
+    Serial.println(WiFi.softAPIP());
 
     while (1)
     {
@@ -400,7 +404,6 @@ void ConnStateMachine(void *pvParameters)
 }
 
 /*GPRS Functions*/
-
 void gsmCallback(char *topic, byte *payload, unsigned int length) 
 {
     Serial.print("Message arrived [");
@@ -446,6 +449,55 @@ void gsmReconnect()
     }
 }
 
+void readFile()
+{
+    String linha;
+    bool read_state = false;
+    unsigned long set_pointer = 0;
+    
+    dataFile = SD.open(file_name, FILE_READ);
+
+    //if (dataFile) 
+    //{
+        
+    while(dataFile.available()) 
+    {
+        if(read_state) 
+        {
+            dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
+            // Serial.println("Read state ok!!");
+        }
+
+        linha = dataFile.readStringUntil('\n');
+
+        set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
+
+        // Separar os valores usando a vírgula como delimitador
+        int posVirgula1 = linha.indexOf(',');
+        int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
+        int posVirgula3 = linha.lastIndexOf(',');
+
+        // Extrair os valores de cada sensor
+        rpm = linha.substring(0, posVirgula1);
+        speed = linha.substring(posVirgula1 + 1, posVirgula2);
+        timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
+
+        publishPacket();
+
+        Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
+
+        read_state = true;
+    }
+        //else {
+    read_state=false;
+    set_pointer=0;
+        //}
+    //} else {
+    //    Serial.println("Failed to open file for reading or the file not exist");
+    //    return;
+    //}
+}
+
 void publishPacket()
 {
     StaticJsonDocument<300> doc;
@@ -457,51 +509,4 @@ void publishPacket()
     memset(msg, 0, sizeof(msg));
     serializeJson(doc, msg);
     mqttClient.publish("/logger", msg);
-}
-
-void readFile()
-{
-    String linha;
-    
-    dataFile = SD.open(file_name, FILE_READ);
-
-    //if (dataFile) 
-    //{
-        
-        while(dataFile.available()) 
-        {
-            if(read_state) 
-            {
-                dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-                // Serial.println("Read state ok!!");
-            }
-
-            linha = dataFile.readStringUntil('\n');
-
-            set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
-
-            // Separar os valores usando a vírgula como delimitador
-            int posVirgula1 = linha.indexOf(',');
-            int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
-            int posVirgula3 = linha.lastIndexOf(',');
-
-            // Extrair os valores de cada sensor
-            rpm = linha.substring(0, posVirgula1);
-            speed = linha.substring(posVirgula1 + 1, posVirgula2);
-            timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
-
-            publishPacket();
-
-            Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
-
-            read_state = true;
-        }
-        //else {
-        read_state=false;
-        set_pointer=0;
-        //}
-    //} else {
-    //    Serial.println("Failed to open file for reading or the file not exist");
-    //    return;
-    //}
 }

@@ -5,8 +5,8 @@
 
 typedef struct
 {
-    uint16_t rpm;
-    uint16_t speed;    
+    uint8_t rpm;
+    uint8_t speed;    
     uint64_t timestamp;
     
 } packet_t;

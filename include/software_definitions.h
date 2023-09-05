@@ -18,14 +18,13 @@
 bool running = false;
 
 /* State Machines */
-//Ocorrerá mudanças no enum
-typedef enum {
+/*typedef enum {
     IDLE,
     WAITING,
     LOGGING
 } logging_states;
 
-logging_states l_state; // datalogger state
+logging_states l_state;*/ // datalogger state
 
 unsigned long timer;
 
