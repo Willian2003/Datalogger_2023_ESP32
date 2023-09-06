@@ -141,7 +141,7 @@ void SDstateMachine(void *pvParameters)
                 dataFile.close();
                 break;
             }
-          
+
             else if(err==MOUNT_ERROR) 
             {
                 Serial.println("Initiating connection attempt");
@@ -183,16 +183,6 @@ void SDstateMachine(void *pvParameters)
 
         while(!running)
         {
-            while(available)
-            {
-                digitalWrite(WAIT_LED, HIGH);
-                digitalWrite(LOG_LED, HIGH);
-                Serial.println("Reading mode, please wait!");
-                delay(500);
-                digitalWrite(WAIT_LED, LOW);
-                digitalWrite(LOG_LED, LOW);
-                delay(500);
-            }
 
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
@@ -201,7 +191,7 @@ void SDstateMachine(void *pvParameters)
         }
 
         Serial.println("Logging mode");
-      
+
         digitalWrite(WAIT_LED, LOW);
         digitalWrite(LOG_LED, HIGH);
 
@@ -227,7 +217,18 @@ void SDstateMachine(void *pvParameters)
         }
 
         available=true;
-      
+
+        while(available)
+        {
+            digitalWrite(WAIT_LED, HIGH);
+            digitalWrite(LOG_LED, HIGH);
+            delay(500);
+            digitalWrite(WAIT_LED, LOW);
+            digitalWrite(LOG_LED, LOW);
+            delay(500);
+
+        }
+
         vTaskDelay(1);
     }
 }
@@ -396,6 +397,7 @@ void ConnStateMachine(void *pvParameters)
         {
             readFile();
             available=false;
+            Serial.print("SAIU DA LEITURA!!!!");
         }
 
         mqttClient.loop();
@@ -456,16 +458,12 @@ void readFile()
     unsigned long set_pointer = 0;
     
     dataFile = SD.open(file_name, FILE_READ);
-
-    //if (dataFile) 
-    //{
         
     while(dataFile.available()) 
     {
         if(read_state) 
         {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
-            // Serial.println("Read state ok!!");
         }
 
         linha = dataFile.readStringUntil('\n');
@@ -488,14 +486,9 @@ void readFile()
 
         read_state = true;
     }
-        //else {
     read_state=false;
     set_pointer=0;
-        //}
-    //} else {
-    //    Serial.println("Failed to open file for reading or the file not exist");
-    //    return;
-    //}
+
 }
 
 void publishPacket()
@@ -504,7 +497,7 @@ void publishPacket()
 
     doc["rpm"] = (rpm);
     doc["speed"] = (speed);
-    doc["TimeStamp"] = (timestamp);
+    doc["timestamp"] = (timestamp);
 
     memset(msg, 0, sizeof(msg));
     serializeJson(doc, msg);
