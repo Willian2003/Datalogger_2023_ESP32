@@ -53,6 +53,7 @@ bool available = false;
 uint8_t freq_pulse_counter = 0;
 uint8_t speed_pulse_counter =  0;
 unsigned long start=0, timeout=5000; // 5 sec
+unsigned long lastDebounceTime = 0, debounceDelay =200;
 
 /* Interrupt routine */
 void toggle_logger();
@@ -121,7 +122,7 @@ void taskSetup()
 /* Interrupt of setup */
 void toggle_logger() 
 {
-    //saveDebounceTimeout = millis();
+    lastDebounceTime = millis();
     running = digitalRead(Button); 
 }
 
@@ -129,107 +130,109 @@ void toggle_logger()
 void SDstateMachine(void *pvParameters)
 {
     while (1)
-    {
-        do {
-            Serial.println("Mounting SD card...");
-          
-            err = sdConfig();
-            Serial.printf("%s\n", (err==MOUNT_ERROR ? "Failed to mount the card" : err==FILE_ERROR ? "Failed to open the file" : "ok file"));
+    {   
+        if ((millis() - lastDebounceTime) > debounceDelay){
+            do {
+                Serial.println("Mounting SD card...");
             
-            if(err==FILE_OK)
-            {
-                dataFile.close();
-                break;
-            }
-
-            else if(err==MOUNT_ERROR) 
-            {
-                Serial.println("Initiating connection attempt");
-                start=millis();
-
-                while((millis()-start)<timeout)
+                err = sdConfig();
+                Serial.printf("%s\n", (err==MOUNT_ERROR ? "Failed to mount the card" : err==FILE_ERROR ? "Failed to open the file" : "ok file"));
+                
+                if(err==FILE_OK)
                 {
-                    if(sdConfig()==FILE_OK)
+                    dataFile.close();
+                    break;
+                }
+
+                else if(err==MOUNT_ERROR) 
+                {
+                    Serial.println("Initiating connection attempt");
+                    start=millis();
+
+                    while((millis()-start)<timeout)
                     {
-                        Serial.println("Reconnection Done!!!");
-                        mounted=true;
-                        break;
+                        if(sdConfig()==FILE_OK)
+                        {
+                            Serial.println("Reconnection Done!!!");
+                            mounted=true;
+                            break;
+                        }
+                        vTaskDelay(1);
                     }
                     vTaskDelay(1);
+                
+                    if(!mounted)
+                    {
+                        Serial.println("SD not mounted, resetting in 1s...");
+                        delay(1000);
+                        esp_restart();
+                    }
+                } else {
+                    Serial.println("Select another SD!");
+                    return;
+                }
+                    
+            } while(err!=FILE_OK);
+        
+            Serial.println("Waiting mode");
+        
+            digitalWrite(WAIT_LED, HIGH);
+            digitalWrite(LOG_LED, LOW);
+
+            detachInterrupt(digitalPinToInterrupt(freq_pin));
+            detachInterrupt(digitalPinToInterrupt(speed_pin));
+            sdTicker.detach();
+
+            while(!running)
+            {
+
+                digitalWrite(WAIT_LED, HIGH);
+                digitalWrite(LOG_LED, LOW);
+                
+                vTaskDelay(1);
+            }
+
+            Serial.println("Logging mode");
+
+            digitalWrite(WAIT_LED, LOW);
+            digitalWrite(LOG_LED, HIGH);
+
+            attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
+            attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
+            sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
+
+            while(running)
+            {
+                if(saveFlag)
+                {
+                    volatile_packet.rpm = freq_pulse_counter;
+                    volatile_packet.speed = speed_pulse_counter;
+                    volatile_packet.timestamp = millis();
+
+                    freq_pulse_counter = 0;
+                    speed_pulse_counter = 0;
+
+                    sdSave();   
+                    saveFlag = false;
                 }
                 vTaskDelay(1);
-              
-                if(!mounted)
-                {
-                    Serial.println("SD not mounted, resetting in 1s...");
-                    delay(1000);
-                    esp_restart();
-                }
-            } else {
-                Serial.println("Select another SD!");
-                return;
             }
-                   
-        } while(err!=FILE_OK);
-      
-        Serial.println("Waiting mode");
-      
-        digitalWrite(WAIT_LED, HIGH);
-        digitalWrite(LOG_LED, LOW);
 
-        detachInterrupt(digitalPinToInterrupt(freq_pin));
-        detachInterrupt(digitalPinToInterrupt(speed_pin));
-        sdTicker.detach();
+            available=true;
 
-        while(!running)
-        {
-
-            digitalWrite(WAIT_LED, HIGH);
-            digitalWrite(LOG_LED, LOW);
-            
-            vTaskDelay(1);
-        }
-
-        Serial.println("Logging mode");
-
-        digitalWrite(WAIT_LED, LOW);
-        digitalWrite(LOG_LED, HIGH);
-
-        attachInterrupt(digitalPinToInterrupt(freq_pin), freq_sensor, FALLING);
-        attachInterrupt(digitalPinToInterrupt(speed_pin), speed_sensor, FALLING);
-        sdTicker.attach(1.0/SAMPLE_FREQ, sdCallback);
-
-        while(running)
-        {
-            if(saveFlag)
+            while(available)
             {
-                volatile_packet.rpm = freq_pulse_counter;
-                volatile_packet.speed = speed_pulse_counter;
-                volatile_packet.timestamp = millis();
+                digitalWrite(WAIT_LED, HIGH);
+                digitalWrite(LOG_LED, HIGH);
+                delay(500);
+                digitalWrite(WAIT_LED, LOW);
+                digitalWrite(LOG_LED, LOW);
+                delay(500);
 
-                freq_pulse_counter = 0;
-                speed_pulse_counter = 0;
-
-                sdSave();   
-                saveFlag = false;
             }
-            vTaskDelay(1);
-        }
-
-        available=true;
-
-        while(available)
-        {
-            digitalWrite(WAIT_LED, HIGH);
-            digitalWrite(LOG_LED, HIGH);
-            delay(500);
-            digitalWrite(WAIT_LED, LOW);
-            digitalWrite(LOG_LED, LOW);
-            delay(500);
-
-        }
 
         vTaskDelay(1);
+        }
     }
 }
 
@@ -429,7 +432,7 @@ void gsmReconnect()
     while (!mqttClient.connected() && count < 3)
     {
         count++;
-        Serial.println("Reconecting to MQTT Broker..");
+        Serial.println("Reconecting to MQTT Broker...");
         String clientId = "ESP32Client-";
         clientId += String(random(0xffff), HEX);
         if (mqttClient.connect(clientId.c_str(), "manguebaja", "aratucampeao", "/online", 2, true, "Offline", true))
@@ -461,6 +464,11 @@ void readFile()
         
     while(dataFile.available()) 
     {
+        if(!mqttClient.connected())
+        {
+            gsmReconnect();
+        }
+
         if(read_state) 
         {
             dataFile.seek(set_pointer); // Para setar a posição (ponteiro) de leitura do arquivo
@@ -483,6 +491,7 @@ void readFile()
         publishPacket();
 
         Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
+        Serial.println(mqttClient.connected());
 
         read_state = true;
     }
