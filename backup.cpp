@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <SD.h>
-#include <Arduino_LSM6DS3.h>
 #include <ESPmDNS.h>
 #include <WiFi.h>
 #include <Ticker.h>
@@ -48,7 +47,6 @@ Ticker sdTicker;
 packet_t volatile_packet;
 String rpm, speed, timestamp;
 int err;
-int acqr;
 bool mounted = false;
 bool saveFlag = false;
 bool available = false;
@@ -84,14 +82,6 @@ void setup()
     Serial.begin(115200);
     SerialAT.begin(115200, SERIAL_8N1, MODEM_RX, MODEM_TX);
 
-    acqr = IMU.begin();
-
-    if(!IMU.begin())
-    {
-        Serial.println("Acelerometer error!!!");
-        return;
-    }
-
     setupVolatilePacket();  // volatile packet default values
     pinConfig();            // Hardware and Interrupt Config
     taskSetup();            // Tasks
@@ -104,12 +94,6 @@ void setupVolatilePacket()
 {
     volatile_packet.rpm = 0;
     volatile_packet.speed = 0;
-    volatile_packet.accx = 0;
-    volatile_packet.accy = 0;
-    volatile_packet.accz = 0;
-    volatile_packet.dpsx = 0;
-    volatile_packet.dpsy = 0;
-    volatile_packet.dpsz = 0;
     volatile_packet.timestamp = 0;
 }
 
@@ -231,23 +215,6 @@ void SDstateMachine(void *pvParameters)
             {
                 volatile_packet.rpm = freq_pulse_counter;
                 volatile_packet.speed = speed_pulse_counter;
-
-                if(acqr!=0)
-                {
-                    if(IMU.accelerationAvailable() && IMU.gyroscopeAvailable())
-                    {
-                        IMU.readAcceleration(volatile_packet.accx, volatile_packet.accy, volatile_packet.accz);
-                        IMU.readGyroscope(volatile_packet.dpsx, volatile_packet.dpsy, volatile_packet.dpsz);
-                    }
-                } else {
-                    volatile_packet.accx = 0;
-                    volatile_packet.accy = 0;
-                    volatile_packet.accz = 0;
-                    volatile_packet.dpsx = 0;
-                    volatile_packet.dpsy = 0;
-                    volatile_packet.dpsz = 0;
-                }
-
                 volatile_packet.timestamp = millis();
 
                 freq_pulse_counter = 0;
@@ -330,17 +297,6 @@ String packetToString()
      dataString += ",";
      dataString += String(volatile_packet.speed);
      dataString += ",";
-     dataString += String(volatile_packet.accx);
-     dataString += ",";
-     dataString += String(volatile_packet.accy);
-     dataString += ",";
-     dataString += String(volatile_packet.accz);
-     dataString += ",";
-     dataString += String(volatile_packet.dpsx);
-     dataString +=  ",";
-     dataString += String(volatile_packet.dpsy);
-     dataString += ",";
-     dataString += String(volatile_packet.dpsz);
      dataString += String(volatile_packet.timestamp);
      dataString += ",";
 
