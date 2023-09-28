@@ -11,9 +11,8 @@
 #define SD_CS 5
 
 //Sensors
-//Pinos imaginarios, também ocorrerá mudanças
-#define freq_pin 21
-#define speed_pin 22
+#define freq_pin 15
+#define speed_pin 26
 
 //Button ISR
 #define Button 4

@@ -4,9 +4,12 @@
 #include <WiFi.h>
 #include <Ticker.h>
 #include <ArduinoJson.h>
+#include <SparkFunLSM6DS3.h>
 #include "gprs_defs.h"
 #include "software_definitions.h"
 #include "saving.h"
+#include "hardware_definitions.h"
+#include "packets.h"
 
 //#define TIM   //Uncomment this line and comment the others if this is your chip
 #define CLARO   //Uncomment this line and comment the others if this is your chip
@@ -45,7 +48,7 @@ Ticker sdTicker;
 /*Global variables*/
 // Packet constantly saved
 packet_t volatile_packet;
-String rpm, speed, timestamp;
+strings volatile_strings;
 int err;
 bool mounted = false;
 bool saveFlag = false;
@@ -133,10 +136,10 @@ void SDstateMachine(void *pvParameters)
     {   
         if ((millis() - lastDebounceTime) > debounceDelay){
             do {
-                Serial.println("Mounting SD card...");
+                // Serial.println("Mounting SD card...");
             
                 err = sdConfig();
-                Serial.printf("%s\n", (err==MOUNT_ERROR ? "Failed to mount the card" : err==FILE_ERROR ? "Failed to open the file" : "ok file"));
+                // Serial.printf("%s\n", (err==MOUNT_ERROR ? "Failed to mount the card" : err==FILE_ERROR ? "Failed to open the file" : "ok file"));
                 
                 if(err==FILE_OK)
                 {
@@ -146,14 +149,14 @@ void SDstateMachine(void *pvParameters)
 
                 else if(err==MOUNT_ERROR) 
                 {
-                    Serial.println("Initiating connection attempt");
+                    // Serial.println("Initiating connection attempt");
                     start=millis();
 
                     while((millis()-start)<timeout)
                     {
                         if(sdConfig()==FILE_OK)
                         {
-                            Serial.println("Reconnection Done!!!");
+                            // Serial.println("Reconnection Done!!!");
                             mounted=true;
                             break;
                         }
@@ -163,18 +166,24 @@ void SDstateMachine(void *pvParameters)
                 
                     if(!mounted)
                     {
-                        Serial.println("SD not mounted, resetting in 1s...");
+                        // Serial.println("SD not mounted, resetting in 1s...");
                         delay(1000);
                         esp_restart();
                     }
                 } else {
-                    Serial.println("Select another SD!");
+                    // Serial.println("Select another SD!");
                     return;
                 }
                     
             } while(err!=FILE_OK);
+
+            // if (!IMU.begin()) {
+            //     Serial.println("Failed to initialize IMU!");
+
+            //     esp_restart();
+            // }
         
-            Serial.println("Waiting mode");
+            // Serial.println("Waiting mode");
         
             digitalWrite(WAIT_LED, HIGH);
             digitalWrite(LOG_LED, LOW);
@@ -192,7 +201,7 @@ void SDstateMachine(void *pvParameters)
                 vTaskDelay(1);
             }
 
-            Serial.println("Logging mode");
+            // Serial.println("Logging mode");
 
             digitalWrite(WAIT_LED, LOW);
             digitalWrite(LOG_LED, HIGH);
@@ -205,6 +214,38 @@ void SDstateMachine(void *pvParameters)
             {
                 if(saveFlag)
                 {
+                    // float x, y, z;
+
+                    // float w, r, t;
+
+                    // if (IMU.accelerationAvailable()) 
+                    // {
+                    //     IMU.readAcceleration(x, y, z);
+
+                    //     // Serial.print(x);
+                    //     // Serial.print('\t');
+                    //     // Serial.print(y);
+                    //     // Serial.print('\t');
+                    //     // Serial.println(z);
+                    // }
+
+                    // if (IMU.gyroscopeAvailable()) 
+                    // {
+                    //     IMU.readGyroscope(w, r, t);
+
+                    //     // Serial.print(w);
+                    //     // Serial.print('\t');
+                    //     // Serial.print(r);
+                    //     // Serial.print('\t');
+                    //     // Serial.println(t);
+                    // }
+
+                    // volatile_packet.accx = x;
+                    // volatile_packet.accy = y;
+                    // volatile_packet.accz = z;
+                    // volatile_packet.gyrox = w;
+                    // volatile_packet.gyroy = r;
+                    // volatile_packet.gyroz = t;
                     volatile_packet.rpm = freq_pulse_counter;
                     volatile_packet.speed = speed_pulse_counter;
                     volatile_packet.timestamp = millis();
@@ -297,6 +338,18 @@ void sdSave()
 String packetToString()
 {
     String dataString = "";
+    //  dataString += String(volatile_packet.accx);
+    //  dataString += ",";
+    //  dataString += String(volatile_packet.accy);
+    //  dataString += ",";
+    //  dataString += String(volatile_packet.accz);
+    //  dataString += ",";
+    //  dataString += String(volatile_packet.gyrox);
+    //  dataString += ",";
+    //  dataString += String(volatile_packet.gyroy);
+    //  dataString += ",";
+    //  dataString += String(volatile_packet.gyroz);
+    //  dataString += ",";
      dataString += String(volatile_packet.rpm);
      dataString += ",";
      dataString += String(volatile_packet.speed);
@@ -327,17 +380,17 @@ void speed_sensor()
 void ConnStateMachine(void *pvParameters)
 {
     // To skip it, call init() instead of restart()
-    Serial.println("Initializing modem...");
+    // Serial.println("Initializing modem...");
     modem.restart();
     // Or, use modem.init() if you don't need the complete restart
 
-    String modemInfo = modem.getModemInfo();
-    Serial.print("Modem: ");
-    Serial.println(modemInfo);
+    // String modemInfo = modem.getModemInfo();
+    // Serial.print("Modem: ");
+    // Serial.println(modemInfo);
 
-    int modemstatus = modem.getSimStatus();
-    Serial.print("Status: ");
-    Serial.println(modemstatus);
+    // int modemstatus = modem.getSimStatus();
+    // Serial.print("Status: ");
+    // Serial.println(modemstatus);
 
     // Unlock your SIM card with a PIN if needed
     if (strlen(simPIN) && modem.getSimStatus() != 3)
@@ -345,29 +398,29 @@ void ConnStateMachine(void *pvParameters)
         modem.simUnlock(simPIN);
     }
 
-    Serial.print("Waiting for network...");
+    // Serial.print("Waiting for network...");
     if (!modem.waitForNetwork(240000L))
     {
-        Serial.println(" fail");
+        // Serial.println(" fail");
         delay(10000);
         return;
     }
-    Serial.println(" OK");
+    // Serial.println(" OK");
 
     if (modem.isNetworkConnected())
     {
-        Serial.println("Network connected");
+        // Serial.println("Network connected");
     }
 
-    Serial.print(F("Connecting to APN: "));
-    Serial.print(apn);
+    // Serial.print(F("Connecting to APN: "));
+    // Serial.print(apn);
     if (!modem.gprsConnect(apn, gprsUser, gprsPass))
     {
-        Serial.println(" fail");
+        // Serial.println("Fail");
         delay(10000);
         return;
     }
-    Serial.println(" OK");
+    // Serial.println("OK");
 
     // Wi-Fi Config and Debug
     WiFi.mode(WIFI_MODE_AP);
@@ -376,18 +429,18 @@ void ConnStateMachine(void *pvParameters)
     if (!MDNS.begin(host)) // Use MDNS to solve DNS
     {
         // http://esp32.local
-        Serial.println("Error configuring mDNS. Rebooting in 1s...");
+        // Serial.println("Error configuring mDNS. Rebooting in 1s...");
         delay(1000);
         ESP.restart();
     }
-    Serial.println("mDNS configured;");
+    // Serial.println("mDNS configured;");
 
     mqttClient.setServer(server, PORT);
     mqttClient.setCallback(gsmCallback);
 
-    Serial.println("Ready");
-    Serial.print("SoftAP IP address: ");
-    Serial.println(WiFi.softAPIP());
+    // Serial.println("Ready");
+    // Serial.print("SoftAP IP address: ");
+    // Serial.println(WiFi.softAPIP());
 
     while (1)
     {
@@ -400,7 +453,6 @@ void ConnStateMachine(void *pvParameters)
         {
             readFile();
             available=false;
-            Serial.print("SAIU DA LEITURA!!!!");
         }
 
         mqttClient.loop();
@@ -428,11 +480,11 @@ void gsmCallback(char *topic, byte *payload, unsigned int length)
 void gsmReconnect()
 {
     int count = 0;
-    Serial.println("Conecting to MQTT Broker...");
+    // Serial.println("Conecting to MQTT Broker...");
     while (!mqttClient.connected() && count < 3)
     {
         count++;
-        Serial.println("Reconecting to MQTT Broker...");
+        // Serial.println("Reconecting to MQTT Broker...");
         String clientId = "ESP32Client-";
         clientId += String(random(0xffff), HEX);
         if (mqttClient.connect(clientId.c_str(), "manguebaja", "aratucampeao", "/online", 2, true, "Offline", true))
@@ -440,15 +492,15 @@ void gsmReconnect()
             sprintf(msg, "%s", "Online");
             mqttClient.publish("/online", msg);
             memset(msg, 0, sizeof(msg));
-            Serial.println("Connected.");
+            // Serial.println("Connected.");
 
             /* Subscribe to topics */
             mqttClient.subscribe("/esp-test");
             digitalWrite(LED_BUILTIN, HIGH);
         }
         else {
-            Serial.print("Failed with state");
-            Serial.println(mqttClient.state());
+            // Serial.print("Failed with state");
+            // Serial.println(mqttClient.state());
             delay(2000);
         }
     }
@@ -479,19 +531,38 @@ void readFile()
         set_pointer = dataFile.position(); // Guardar a posição (ponteiro) de leitura do arquivo
 
         // Separar os valores usando a vírgula como delimitador
+        // int posVirgula1 = linha.indexOf(',');
+        // int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
+        // int posVirgula3 = linha.indexOf(',', posVirgula2 + 1);
+        // int posVirgula4 = linha.indexOf(',', posVirgula3 + 1);
+        // int posVirgula5 = linha.indexOf(',', posVirgula4 + 1);
+        // int posVirgula6 = linha.indexOf(',', posVirgula5 + 1);
+        // int posVirgula7 = linha.indexOf(',', posVirgula6 + 1);
+        // int posVirgula8 = linha.indexOf(',', posVirgula7 + 1);
+        // int posVirgula9 = linha.lastIndexOf(',');
+
         int posVirgula1 = linha.indexOf(',');
         int posVirgula2 = linha.indexOf(',', posVirgula1 + 1);
         int posVirgula3 = linha.lastIndexOf(',');
 
         // Extrair os valores de cada sensor
-        rpm = linha.substring(0, posVirgula1);
-        speed = linha.substring(posVirgula1 + 1, posVirgula2);
-        timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
+        // volatile_strings.accx = linha.substring(0, posVirgula1);
+        // volatile_strings.accy = linha.substring(posVirgula1 + 1, posVirgula2);
+        // volatile_strings.accz = linha.substring(posVirgula2 + 1, posVirgula3);
+        // volatile_strings.gyrox = linha.substring(posVirgula3 + 1, posVirgula4);
+        // volatile_strings.gyroy = linha.substring(posVirgula4 + 1, posVirgula5);
+        // volatile_strings.gyroz = linha.substring(posVirgula5 + 1, posVirgula6);
+        // volatile_strings.rpm = linha.substring(posVirgula6 + 1, posVirgula7);
+        // volatile_strings.speed = linha.substring(posVirgula7 + 1, posVirgula8);
+        // volatile_strings.timestamp = linha.substring(posVirgula8 + 1, posVirgula9);
+
+        volatile_strings.rpm = linha.substring(0, posVirgula1);
+        volatile_strings.speed = linha.substring(posVirgula1 + 1, posVirgula2);
+        volatile_strings.timestamp = linha.substring(posVirgula2 + 1, posVirgula3);
 
         publishPacket();
 
-        Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
-        Serial.println(mqttClient.connected());
+        //Serial.printf("rpm=%s, speed=%s, timestamp=%s\n", rpm, speed, timestamp);
 
         read_state = true;
     }
@@ -504,9 +575,15 @@ void publishPacket()
 {
     StaticJsonDocument<300> doc;
 
-    doc["rpm"] = (rpm);
-    doc["speed"] = (speed);
-    doc["timestamp"] = (timestamp);
+    // doc["accx"] = (volatile_strings.accx);
+    // doc["accy"] = (volatile_strings.accy);
+    // doc["accz"] = (volatile_strings.accz);
+    // doc["gyrox"] = (volatile_strings.gyrox);
+    // doc["gyroy"] = (volatile_strings.gyroy);
+    // doc["gyroz"] = (volatile_strings.gyroz);
+    doc["rpm"] = (volatile_strings.rpm);
+    doc["speed"] = (volatile_strings.speed);
+    doc["timestamp"] = (volatile_strings.timestamp);
 
     memset(msg, 0, sizeof(msg));
     serializeJson(doc, msg);
